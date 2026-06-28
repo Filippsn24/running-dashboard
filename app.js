@@ -54,7 +54,40 @@ const SNAPSHOT_ROWS = [
   ["2026-06-25", "Чт", 1, "Восстановление", "8 км легко", 8, 8, null, "", null, "", null, "", "", null],
   ["2026-06-26", "Пт", 1, "Средний бег", "12 км легко-умеренно", 12, 12, null, "", null, "", null, "", "", null],
   ["2026-06-27", "Сб", 1, "Отдых", "Полный отдых", 0, 0, null, "", null, "", null, "", "", null],
-  ["2026-06-28", "Вс", 1, "Длительная", "16 км легко, последние 3 км чуть быстрее", 16, 16, null, "", null, "", null, "", "", null],
+  ["2026-06-28", "Вс", 1, "Длительная", "16 км легко, последние 3 км чуть быстрее", 16, 16, 12.77, "5:30", 136, "Спокойная длительная / средний бег", 8, "Завершающая тренировка недели. Неделя получилась восстановительной: 3 беговые тренировки + падел.", "Меньше плана", -3.23],
+  ["2026-06-29", "Пн", 2, "Лёгкий бег + ОФП А", "10 км легко, пульс 130–140 + 6×100 м ускорения. После бега Комплекс А: болгарские выпады, приседания до стула, мост на одной ноге, подъёмы на носки, планка.", 10, 11, null, "", null, "", null, "", "", null],
+  ["2026-06-30", "Вт", 2, "Порог", "2 км разминка + 3×3 км по 3:52–3:57/км, отдых 3 мин трусцой + заминка. Без ОФП.", 16, 18, null, "", null, "", null, "", "", null],
+  ["2026-07-01", "Ср", 2, "Лёгкий бег + ОФП C", "10–12 км очень спокойно. После бега Комплекс C: МФР квадрицепс/ягодицы/икры, 90/90, сгибатели бедра, голеностоп у стены.", 10, 12, null, "", null, "", null, "", "", null],
+  ["2026-07-02", "Чт", 2, "Дорога / отдых", "Перелёт в Красную Поляну. Основной план — отдых. Если доберётесь без сложностей и будет желание: 5–6 км очень легко вечером.", 0, 6, null, "", null, "", null, "", "", null],
+  ["2026-07-03", "Пт", 2, "Рельеф + ОФП B", "12–14 км по холмам, без контроля темпа, по усилию. После бега Комплекс B: резинка в стороны, ракушка, Bird Dog, Dead Bug, баланс, икры.", 12, 14, null, "", null, "", null, "", "", null],
+  ["2026-07-04", "Сб", 2, "Лёгкий бег", "8–10 км легко. Если состояние отличное — вечером 4–5 км восстановительно, но только без усталости.", 8, 15, null, "", null, "", null, "", "", null],
+  ["2026-07-05", "Вс", 2, "Длительная", "18–20 км длительная. Первые 15 км спокойно, последние 3–5 км можно чуть быстрее по самочувствию. Главная задача недели — вернуться к активной работе и начать системное ОФП.", 18, 20, null, "", null, "", null, "", "", null],
+];
+
+const DEFAULT_OFP_EXERCISES = [
+  "ягодичный мост 2×12–15",
+  "выпады назад 2×8–10 на ногу",
+  "подъёмы на носки 3×15–20",
+  "планка 2×40–60 сек",
+  "боковая планка 2×30–40 сек на сторону",
+  "Bird Dog или Dead Bug 2×10 на сторону",
+];
+
+const DEFAULT_SBU_EXERCISES = [
+  "высокий подъём бедра 2×20–30 м",
+  "захлёст голени 2×20–30 м",
+  "семенящий бег / частая работа стопой 2×20–30 м",
+  "перекат с пятки на носок или лёгкий олений бег",
+  "мягкие беговые шаги",
+  "4–5 ускорений по 80–100 м",
+];
+
+const DEFAULT_MOBILITY_EXERCISES = [
+  "голеностоп",
+  "круговые движения тазом",
+  "махи ногами",
+  "лёгкие приседания",
+  "перекаты с пятки на носок",
 ];
 
 const SNAPSHOT_RECORDS = [
@@ -91,8 +124,7 @@ let state = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const latest = latestDate(state.rows);
-  state.selectedDate = dateOnly(latest || new Date());
+  state.selectedDate = defaultSelectedDate(state.rows);
   byId("datePicker").value = toIsoDate(state.selectedDate);
   byId("datePicker").addEventListener("change", (event) => {
     state.selectedDate = parseIsoDate(event.target.value);
@@ -216,7 +248,7 @@ async function loadLiveData(isManual) {
 
   const chosen = state.rows.find((row) => row.iso === toIsoDate(state.selectedDate));
   if (!chosen) {
-    state.selectedDate = latestDate(state.rows);
+    state.selectedDate = defaultSelectedDate(state.rows);
     byId("datePicker").value = toIsoDate(state.selectedDate);
   }
 
@@ -499,8 +531,88 @@ function renderOfp(monthRows, allRows, selected) {
     : "Ближайшая: нет в плане";
 
   byId("ofpList").innerHTML = ofpRows.length
-    ? ofpRows.map((row) => trainingRow(row, true)).join("")
+    ? ofpRows.map((row) => ofpRow(row)).join("")
     : `<p class="empty">В выбранном месяце ОФП, мобилити или СБУ не найдены.</p>`;
+}
+
+function ofpRow(row) {
+  const status = statusFor(row, state.selectedDate);
+  const exercises = ofpExercises(row);
+
+  return `
+    <div class="training-row ofp-row">
+      <strong>${formatDate(row.date)}</strong>
+      <strong>${escapeHtml(row.type)}</strong>
+      <div>
+        <p><strong>Бег/контекст:</strong> ${escapeHtml(ofpContext(row))}</p>
+        <ul class="exercise-list">
+          ${exercises.map((exercise) => `<li>${escapeHtml(exercise)}</li>`).join("")}
+        </ul>
+      </div>
+      <span class="pill ${statusClass(status)}">${escapeHtml(status)}</span>
+    </div>
+  `;
+}
+
+function ofpContext(row) {
+  const plan = clean(row.plan);
+  if (!plan) return "Без описания бега";
+
+  const markers = [
+    "После бега",
+    "Комплекс",
+    "+ ОФП",
+    "+ СБУ",
+    "СБУ:",
+    "мобилити",
+  ];
+  const cutAt = markers
+    .map((marker) => plan.toLowerCase().indexOf(marker.toLowerCase()))
+    .filter((index) => index > 0)
+    .sort((a, b) => a - b)[0];
+
+  return clean(cutAt ? plan.slice(0, cutAt).replace(/[+.]\s*$/, "") : plan);
+}
+
+function ofpExercises(row) {
+  const text = [row.plan, row.work, row.condition, row.completion].filter(Boolean).join(" ");
+  const lower = text.toLowerCase();
+  const complex = extractAfterMarker(text, /комплекс\s*[abcавс]\s*:/i);
+  if (complex.length) return complex;
+
+  const explicitSbu = extractAfterMarker(text, /сбу\s*:/i);
+  const afterSbu = extractAfterMarker(text, /после\s+сбу\s*/i);
+  if (explicitSbu.length || afterSbu.length) {
+    return [...explicitSbu, ...afterSbu];
+  }
+
+  if (lower.includes("сбу")) return DEFAULT_SBU_EXERCISES;
+  if (lower.includes("мобилити")) return DEFAULT_MOBILITY_EXERCISES;
+  if (lower.includes("офп")) return DEFAULT_OFP_EXERCISES;
+  return ["упражнения не указаны в плане"];
+}
+
+function extractAfterMarker(text, markerPattern) {
+  const match = text.match(markerPattern);
+  if (!match || match.index === undefined) return [];
+
+  const start = match.index + match[0].length;
+  const chunk = text
+    .slice(start)
+    .split(/[.]/)[0]
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!chunk) return [];
+  return splitExercises(chunk);
+}
+
+function splitExercises(text) {
+  return text
+    .split(/[,;]/)
+    .map((item) => clean(item))
+    .filter(Boolean)
+    .map((item) => item.replace(/\s+и\s+$/i, "").trim());
 }
 
 function renderStarts(selected) {
@@ -625,8 +737,16 @@ function isStartPr(start) {
 }
 
 function isOfp(row) {
-  const text = `${row.plan} ${row.work} ${row.condition} ${row.completion}`.toLowerCase();
-  return /офп|мобилити|сбу|силов/.test(text);
+  const text = `${row.type} ${row.plan} ${row.work} ${row.condition} ${row.completion}`.toLowerCase();
+  if (/без\s+офп/.test(text)) return false;
+
+  return /комплекс\s*[abcавс]\s*:/.test(text)
+    || /\+\s*офп/.test(text)
+    || /офп\s*[abcавс]\b/.test(text)
+    || /офп\s+\d/.test(text)
+    || /мобилити/.test(text)
+    || /сбу/.test(text)
+    || /силов/.test(text);
 }
 
 function isDone(row, selected) {
@@ -727,6 +847,15 @@ function inRange(date, start, end) {
 
 function latestDate(rows) {
   return rows.reduce((latest, row) => (!latest || row.date > latest ? row.date : latest), null);
+}
+
+function defaultSelectedDate(rows) {
+  const today = dateOnly(new Date());
+  const notFuture = rows
+    .filter((row) => row.date && row.date <= today)
+    .sort((a, b) => b.date - a.date);
+
+  return dateOnly(notFuture[0]?.date || latestDate(rows) || today);
 }
 
 function clean(value) {
