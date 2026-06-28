@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Беговой дашборд</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Беговой дневник</p>
+          <h1>План и факт тренировок</h1>
+        </div>
+        <div class="actions">
+          <label class="date-control">
+            <span>Дата</span>
+            <input id="datePicker" type="date" />
+          </label>
+          <button id="refreshButton" type="button">Обновить</button>
+          <a
+            class="sheet-link"
+            href="https://docs.google.com/spreadsheets/d/1AnyYR0a31nOsHgNP5Cy6q2IkR4tl3yLcSo-QaKoKH8k/edit?gid=37981419#gid=37981419"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Таблица
+          </a>
+        </div>
+      </header>
+
+      <section class="status-line" aria-live="polite">
+        <span id="syncStatus">Загружаю данные...</span>
+        <span id="selectedRange"></span>
+      </section>
+
+      <section class="kpis" aria-label="Основная статистика">
+        <article class="kpi">
+          <span class="kpi-label">День</span>
+          <strong id="dayFact">0 км</strong>
+          <span id="dayPlan">План: 0 км</span>
+          <div class="meter"><span id="dayMeter"></span></div>
+          <small id="dayDelta">Отклонение: 0 км</small>
+        </article>
+        <article class="kpi">
+          <span class="kpi-label">Неделя</span>
+          <strong id="weekFact">0 км</strong>
+          <span id="weekPlan">План: 0 км</span>
+          <div class="meter"><span id="weekMeter"></span></div>
+          <small id="weekDelta">Отклонение: 0 км</small>
+        </article>
+        <article class="kpi">
+          <span class="kpi-label">Месяц</span>
+          <strong id="monthFact">0 км</strong>
+          <span id="monthPlan">План: 0 км</span>
+          <div class="meter"><span id="monthMeter"></span></div>
+          <small id="monthDelta">Отклонение: 0 км</small>
+        </article>
+        <article class="kpi accent">
+          <span class="kpi-label">ОФП и техника</span>
+          <strong id="ofpCount">0</strong>
+          <span id="ofpSummary">В выбранном месяце</span>
+          <div class="meter"><span id="ofpMeter"></span></div>
+          <small id="ofpNext">Ближайшая: нет</small>
+        </article>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="panel today-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Выбранный день</p>
+              <h2 id="todayTitle">Тренировка</h2>
+            </div>
+            <span id="todayStatus" class="pill">Нет данных</span>
+          </div>
+          <p id="todayPlanText" class="plan-text"></p>
+          <dl class="details">
+            <div>
+              <dt>Тип</dt>
+              <dd id="todayType">-</dd>
+            </div>
+            <div>
+              <dt>Факт</dt>
+              <dd id="todayFact">-</dd>
+            </div>
+            <div>
+              <dt>Темп</dt>
+              <dd id="todayPace">-</dd>
+            </div>
+            <div>
+              <dt>Пульс</dt>
+              <dd id="todayPulse">-</dd>
+            </div>
+            <div>
+              <dt>Оценка</dt>
+              <dd id="todayScore">-</dd>
+            </div>
+            <div>
+              <dt>Неделя плана</dt>
+              <dd id="todayWeek">-</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Неделя</p>
+              <h2>План по дням</h2>
+            </div>
+            <span id="weekWindow" class="muted"></span>
+          </div>
+          <div id="weekBars" class="bars"></div>
+        </article>
+
+        <article class="panel wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Календарь</p>
+              <h2>Тренировки недели</h2>
+            </div>
+            <span id="weekTotals" class="muted"></span>
+          </div>
+          <div id="trainingList" class="training-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Месяц</p>
+              <h2>Недели месяца</h2>
+            </div>
+          </div>
+          <div id="monthBars" class="month-bars"></div>
+        </article>
+
+        <article class="panel wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">ОФП</p>
+              <h2>Силовая, мобилити и СБУ</h2>
+            </div>
+            <span id="ofpWindow" class="muted"></span>
+          </div>
+          <div id="ofpList" class="training-list compact"></div>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
