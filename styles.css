@@ -349,6 +349,84 @@ dd {
   grid-template-columns: 82px 160px minmax(0, 1fr) 122px;
 }
 
+.starts-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.starts-overview div,
+.record-pill,
+.start-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(245, 242, 234, 0.45);
+}
+
+.starts-overview div {
+  min-width: 0;
+  padding: 14px;
+  display: grid;
+  gap: 5px;
+}
+
+.starts-overview span,
+.starts-overview small,
+.start-row p,
+.start-row small {
+  color: var(--muted);
+}
+
+.starts-overview strong {
+  font-size: 22px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.records-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.record-pill {
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.record-pill strong {
+  color: var(--text);
+}
+
+.starts-list {
+  display: grid;
+  gap: 8px;
+}
+
+.start-row {
+  display: grid;
+  grid-template-columns: 92px 170px minmax(0, 1fr) 120px 110px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.start-row strong {
+  overflow-wrap: anywhere;
+}
+
+.start-row p {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.start-result {
+  font-weight: 900;
+}
+
 .empty {
   padding: 16px;
   border: 1px dashed var(--line);
@@ -376,7 +454,8 @@ dd {
   }
 
   .training-row,
-  .compact .training-row {
+  .compact .training-row,
+  .start-row {
     grid-template-columns: 1fr;
   }
 
@@ -393,6 +472,10 @@ dd {
 
   .details {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .starts-overview {
+    grid-template-columns: 1fr;
   }
 
   .bar-row,
