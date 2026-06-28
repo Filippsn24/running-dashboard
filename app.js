@@ -1,6 +1,8 @@
 const CONFIG = {
   spreadsheetId: "1AnyYR0a31nOsHgNP5Cy6q2IkR4tl3yLcSo-QaKoKH8k",
   sheetGid: "37981419",
+  startsSheetGid: "2119545747",
+  startsRange: "A6:I",
   fallbackYear: 2026,
 };
 
@@ -55,6 +57,22 @@ const SNAPSHOT_ROWS = [
   ["2026-06-28", "Вс", 1, "Длительная", "16 км легко, последние 3 км чуть быстрее", 16, 16, null, "", null, "", null, "", "", null],
 ];
 
+const SNAPSHOT_RECORDS = [
+  ["5 км", "17:09"],
+  ["10 км", "36:29"],
+  ["Полумарафон", "1:23:00"],
+];
+
+const SNAPSHOT_STARTS = [
+  ["2026-05-03", "Казанский полумарафон", "21,1 км", "Проверка формы", "1:24:00", "1:23:00", "3:56/км", "Да", "Новый личный рекорд на полумарафоне"],
+  ["2026-06-20", "Ночной забег", "10 км", "Подойти к 36:30-37:00", "36:30-37:00", "37:20", "3:44/км", "Нет", "Сложная трасса, тягун на последних километрах. Колено не беспокоило."],
+  ["2026-07-12", "Сырный трейл", "15 км", "Проверка горной подготовки после Красной Поляны", "По состоянию", "", "", "", "Не главный старт. Бежать как контроль формы и силовой выносливости."],
+  ["2026-07-29", "Мещерский парк", "10 км", "Контрольная ровная десятка", "Попытка обновить PB", "", "", "", "Проверка формы после Поляны и трейла"],
+  ["2026-08-23", "Полумарафон Тула", "21,1 км", "Главный старт сезона", "<1:20:00", "", "", "", "Основная цель - выбежать из 1:20"],
+  ["2026-09-06", "Полумарафон Минск", "21,1 км", "По состоянию после Тулы", "Уточнить ближе к старту", "", "", "", "Возможный старт после главной цели"],
+  ["2026-10-04", "Полумарафон Моя столица", "21,1 км", "Завершение сезона", "Уточнить ближе к старту", "", "", "", "Осенний контрольный полумарафон"],
+];
+
 const byId = (id) => document.getElementById(id);
 const numberFormatter = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 });
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short" });
@@ -66,6 +84,8 @@ const fullDateFormatter = new Intl.DateTimeFormat("ru-RU", {
 
 let state = {
   rows: hydrateSnapshot(),
+  starts: hydrateStartsSnapshot(),
+  records: hydrateRecordsSnapshot(),
   selectedDate: null,
   liveLoaded: false,
 };
@@ -104,6 +124,44 @@ function hydrateSnapshot() {
   })).filter((row) => row.date);
 }
 
+function hydrateRecordsSnapshot() {
+  return SNAPSHOT_RECORDS.map(([distance, result]) => ({
+    distance: clean(distance),
+    result: clean(result),
+  })).filter((record) => record.distance && record.result);
+}
+
+function hydrateStartsSnapshot() {
+  return SNAPSHOT_STARTS.map((item) => normalizeStart({
+    date: item[0],
+    name: item[1],
+    distance: item[2],
+    goal: item[3],
+    plan: item[4],
+    fact: item[5],
+    pace: item[6],
+    pr: item[7],
+    comment: item[8],
+  })).filter((start) => start.date && start.name);
+}
+
+function normalizeStart(raw) {
+  const date = raw.date instanceof Date ? dateOnly(raw.date) : parseDate(raw.date);
+
+  return {
+    date,
+    iso: date ? toIsoDate(date) : "",
+    name: clean(raw.name),
+    distance: clean(raw.distance),
+    goal: clean(raw.goal),
+    plan: clean(raw.plan),
+    fact: clean(raw.fact),
+    pace: clean(raw.pace),
+    pr: clean(raw.pr),
+    comment: clean(raw.comment),
+  };
+}
+
 function normalizeRow(raw) {
   const date = raw.date instanceof Date ? dateOnly(raw.date) : parseDate(raw.date);
   const planFromText = inferPlan(raw.plan);
@@ -130,62 +188,96 @@ function normalizeRow(raw) {
   };
 }
 
-function loadLiveData(isManual) {
+async function loadLiveData(isManual) {
   setStatus("Пробую обновить данные из Google Sheets...");
-  const callback = `runningDashboard${Date.now()}`;
-  const script = document.createElement("script");
-  let finished = false;
 
-  window[callback] = (response) => {
-    finished = true;
-    cleanup();
-    if (!response || response.status !== "ok" || !response.table) {
-      setStatus("Живое чтение недоступно. Использую сохранённый снимок таблицы.");
-      return;
-    }
+  const [diaryResult, startsResult, recordsResult] = await Promise.allSettled([
+    loadGoogleTable({ gid: CONFIG.sheetGid, headers: 1 }).then(rowsFromGoogleTable),
+    loadGoogleTable({ gid: CONFIG.startsSheetGid, headers: 1, range: CONFIG.startsRange }).then(startsFromGoogleTable),
+    loadGoogleTable({ gid: CONFIG.startsSheetGid, headers: 0, range: "A2:B4" }).then(recordsFromGoogleTable),
+  ]);
 
-    const rows = rowsFromGoogleTable(response.table);
-    if (!rows.length) {
-      setStatus("Google Sheets ответил, но строки не найдены. Оставил сохранённый снимок.");
-      return;
-    }
-
-    state.rows = rows;
+  let updated = 0;
+  if (diaryResult.status === "fulfilled" && diaryResult.value.length) {
+    state.rows = diaryResult.value;
     state.liveLoaded = true;
-    const chosen = state.rows.find((row) => row.iso === toIsoDate(state.selectedDate));
-    if (!chosen) {
-      state.selectedDate = latestDate(state.rows);
-      byId("datePicker").value = toIsoDate(state.selectedDate);
-    }
-    setStatus(`Данные обновлены из Google Sheets: ${rows.length} строк.`);
-    render();
-  };
-
-  script.onerror = () => {
-    finished = true;
-    cleanup();
-    setStatus("Google Sheets не отдал публичные данные. Показан сохранённый снимок.");
-  };
-
-  const tqx = encodeURIComponent(`out:json;responseHandler:${callback}`);
-  const tq = encodeURIComponent("select *");
-  script.src = `https://docs.google.com/spreadsheets/d/${CONFIG.spreadsheetId}/gviz/tq?gid=${CONFIG.sheetGid}&headers=1&tqx=${tqx}&tq=${tq}`;
-  document.head.appendChild(script);
-
-  window.setTimeout(() => {
-    if (finished) return;
-    cleanup();
-    if (isManual) {
-      setStatus("Не получилось быстро обновить Google Sheets. Дашборд работает на сохранённом снимке.");
-    } else {
-      setStatus("Показан сохранённый снимок. Для живого обновления таблица должна быть доступна по ссылке или опубликована.");
-    }
-  }, 5000);
-
-  function cleanup() {
-    if (script.parentNode) script.parentNode.removeChild(script);
-    delete window[callback];
+    updated += 1;
   }
+
+  if (startsResult.status === "fulfilled" && startsResult.value.length) {
+    state.starts = startsResult.value;
+    updated += 1;
+  }
+
+  if (recordsResult.status === "fulfilled" && recordsResult.value.length) {
+    state.records = recordsResult.value;
+    updated += 1;
+  }
+
+  const chosen = state.rows.find((row) => row.iso === toIsoDate(state.selectedDate));
+  if (!chosen) {
+    state.selectedDate = latestDate(state.rows);
+    byId("datePicker").value = toIsoDate(state.selectedDate);
+  }
+
+  if (updated) {
+    setStatus(`Данные обновлены из Google Sheets: дневник ${state.rows.length} строк, старты ${state.starts.length}.`);
+  } else if (isManual) {
+    setStatus("Не получилось быстро обновить Google Sheets. Дашборд работает на сохранённом снимке.");
+  } else {
+    setStatus("Показан сохранённый снимок. Для живого обновления таблица должна быть доступна по ссылке или опубликована.");
+  }
+
+  render();
+}
+
+function loadGoogleTable({ gid, headers, range }) {
+  return new Promise((resolve, reject) => {
+    const callback = `runningDashboard${Date.now()}${Math.floor(Math.random() * 10000)}`;
+    const script = document.createElement("script");
+    let finished = false;
+
+    window[callback] = (response) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      if (!response || response.status !== "ok" || !response.table) {
+        reject(new Error("Google Sheets response is not available"));
+        return;
+      }
+      resolve(response.table);
+    };
+
+    script.onerror = () => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      reject(new Error("Google Sheets script failed"));
+    };
+
+    const params = new URLSearchParams({
+      gid,
+      headers: String(headers),
+      tqx: `out:json;responseHandler:${callback}`,
+      tq: "select *",
+    });
+    if (range) params.set("range", range);
+
+    script.src = `https://docs.google.com/spreadsheets/d/${CONFIG.spreadsheetId}/gviz/tq?${params.toString()}`;
+    document.head.appendChild(script);
+
+    window.setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      reject(new Error("Google Sheets request timed out"));
+    }, 5000);
+
+    function cleanup() {
+      if (script.parentNode) script.parentNode.removeChild(script);
+      delete window[callback];
+    }
+  });
 }
 
 function rowsFromGoogleTable(table) {
@@ -217,6 +309,41 @@ function rowsFromGoogleTable(table) {
     .filter((row) => row.date && row.type);
 }
 
+function startsFromGoogleTable(table) {
+  const headers = table.cols.map((col) => clean(col.label || col.id));
+  const index = (name) => headers.findIndex((header) => header.toLowerCase() === name.toLowerCase());
+  const get = (cells, name) => cellValue(cells[index(name)]);
+
+  return table.rows
+    .map((row) => {
+      const cells = row.c || [];
+      return normalizeStart({
+        date: get(cells, "Дата"),
+        name: get(cells, "Старт"),
+        distance: get(cells, "Дистанция"),
+        goal: get(cells, "Цель"),
+        plan: get(cells, "План"),
+        fact: get(cells, "Факт"),
+        pace: get(cells, "Темп"),
+        pr: get(cells, "PR"),
+        comment: get(cells, "Комментарий"),
+      });
+    })
+    .filter((start) => start.date && start.name);
+}
+
+function recordsFromGoogleTable(table) {
+  return table.rows
+    .map((row) => {
+      const cells = row.c || [];
+      return {
+        distance: clean(cellValue(cells[0])),
+        result: clean(cellValue(cells[1])),
+      };
+    })
+    .filter((record) => record.distance && record.result);
+}
+
 function cellValue(cell) {
   if (!cell) return "";
   if (cell.f !== undefined && cell.f !== null && cell.f !== "") return cell.f;
@@ -241,6 +368,7 @@ function render() {
   renderTrainingList(weekRows);
   renderMonthBars(monthRows);
   renderOfp(monthRows, rows, selected);
+  renderStarts(selected);
 }
 
 function renderKpis(dayRow, weekRows, monthRows, selected) {
@@ -375,6 +503,52 @@ function renderOfp(monthRows, allRows, selected) {
     : `<p class="empty">В выбранном месяце ОФП, мобилити или СБУ не найдены.</p>`;
 }
 
+function renderStarts(selected) {
+  const starts = state.starts.slice().sort((a, b) => a.date - b.date);
+  const completed = starts.filter(hasStartResult);
+  const planned = starts.filter((start) => !hasStartResult(start));
+  const prCount = starts.filter(isStartPr).length;
+  const next = starts.find((start) => start.date >= selected && !hasStartResult(start))
+    || starts.find((start) => start.date >= selected)
+    || null;
+
+  byId("startsSummary").textContent = `${starts.length} стартов · ${planned.length} в плане`;
+  byId("nextStartName").textContent = next ? next.name : "Нет будущих стартов";
+  byId("nextStartMeta").textContent = next
+    ? `${formatDate(next.date)} · ${next.distance || "дистанция не указана"}`
+    : "Календарь стартов закрыт";
+  byId("completedStarts").textContent = `${completed.length}/${starts.length}`;
+  byId("completedStartsMeta").textContent = "С заполненным фактом";
+  byId("prStarts").textContent = `${prCount}`;
+  byId("prStartsMeta").textContent = prCount ? "Есть личные рекорды" : "Пока без новых PR";
+
+  byId("recordsList").innerHTML = state.records.length
+    ? state.records.map((record) => `
+      <span class="record-pill">${escapeHtml(record.distance)}: <strong>${escapeHtml(record.result)}</strong></span>
+    `).join("")
+    : "";
+
+  byId("startsList").innerHTML = starts.length
+    ? starts.map((start) => startRow(start, selected)).join("")
+    : `<p class="empty">В листе стартов пока нет строк.</p>`;
+}
+
+function startRow(start, selected) {
+  const status = startStatus(start, selected);
+  const result = hasStartResult(start) ? start.fact : start.plan || "План уточнить";
+  const detail = [start.goal, start.comment].filter(Boolean).join(" · ");
+
+  return `
+    <div class="start-row">
+      <strong>${formatDate(start.date)}</strong>
+      <strong>${escapeHtml(start.name)}</strong>
+      <p>${escapeHtml(detail || "Без комментария")}</p>
+      <span class="start-result">${escapeHtml(result)}${start.pace ? ` · ${escapeHtml(start.pace)}` : ""}</span>
+      <span class="pill ${statusClass(status)}">${escapeHtml(status)}</span>
+    </div>
+  `;
+}
+
 function trainingRow(row, compact = false) {
   const status = statusFor(row, state.selectedDate);
   const statusHtml = `<span class="pill ${statusClass(status)}">${escapeHtml(status)}</span>`;
@@ -429,10 +603,25 @@ function statusFor(row, selected) {
 }
 
 function statusClass(status) {
-  if (/больше|отлично|выполн|по плану|в плане/i.test(status)) return "good";
+  if (/больше|отлично|выполн|по плану|в плане|финиш|pr/i.test(status)) return "good";
   if (/меньше|частично|не заполнено/i.test(status)) return "warn";
   if (/пропуск|отмена/i.test(status)) return "bad";
   return "";
+}
+
+function startStatus(start, selected) {
+  if (isStartPr(start)) return "Новый PR";
+  if (hasStartResult(start)) return "Финиш";
+  if (start.date < selected) return "Ждёт результат";
+  return "Запланирован";
+}
+
+function hasStartResult(start) {
+  return Boolean(start && start.fact);
+}
+
+function isStartPr(start) {
+  return /^да$/i.test(clean(start?.pr));
 }
 
 function isOfp(row) {
