@@ -349,6 +349,33 @@ dd {
   grid-template-columns: 82px 160px minmax(0, 1fr) 122px;
 }
 
+.ofp-row {
+  grid-template-columns: 82px 170px minmax(0, 1fr) 122px;
+}
+
+.ofp-row p strong {
+  color: var(--text);
+}
+
+.exercise-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exercise-list li {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.82);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .starts-overview {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -455,6 +482,7 @@ dd {
 
   .training-row,
   .compact .training-row,
+  .ofp-row,
   .start-row {
     grid-template-columns: 1fr;
   }
